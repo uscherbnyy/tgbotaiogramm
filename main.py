@@ -22,8 +22,10 @@ count = 0
 class AddQState(StatesGroup):
     # хранит в каком этапе создание вопроса
     CATT = State()
-    QUE = State()
+    ADD_QUE = State()
+    CHOICE_NUM = State()
     NUM_ANSW = State()
+    TRUE_ANSW =State()
     ANSW = State()
     FINISH = State()
 
@@ -148,42 +150,94 @@ async def create_quiz(message: types.Message, state: FSMContext) -> None:
 
 
 @dp.message_handler(state=AddQState.CATT)
-async def add_questions(message: types.Message, state: FSMContext):
+async def add_category(message: types.Message, state: FSMContext):
     category_name = message.text  # получаем название категории
     await state.update_data(CATEGORY=category_name)
     await message.answer(f'Вы выбрали категорию: {category_name}.\nТеперь введите ваш вопрос',
                          reply_markup=types.ReplyKeyboardRemove())
-    await state.set_state(AddQState.QUE.state)
+    await state.set_state(AddQState.ADD_QUE.state)
 
 
-@dp.message_handler(state=AddQState.QUE)
-async def add_answer(message: types.Message, state: FSMContext):
+@dp.message_handler(state=AddQState.ADD_QUE)
+async def add_questions(message: types.Message, state: FSMContext):
     question_name = message.text    # получаем вопрос
     await state.update_data(QUESTION=question_name)
-    await message.reply("Ведите ответ")
+    await message.reply("Ведите кол-во ответов, ответов не может быть больше 5 и меньше 2")
+    await state.set_state(AddQState.NUM_ANSW.state)
+
+
+@dp.message_handler(state=AddQState.CHOICE_NUM)
+async def choice_num(message: types.Message, state: FSMContext):
+    num_user = message.text
+    await message.answer(f"Значит {num_user}")
+    await state.set_state(AddQState.NUM_ANSW.state)
+
+
+@dp.message_handler(state=AddQState.NUM_ANSW)
+async def add_num_answer(message: types.Message, state: FSMContext):
+    quantity_answ = message.text
+    if quantity_answ.isdigit():
+        int_quantity_answ = int(quantity_answ)
+        if 1 < int_quantity_answ < 6:
+            await state.update_data(QUANTITY_ANS=int_quantity_answ)
+            await message.answer("введите правильный ответ")
+            await state.set_state(AddQState.TRUE_ANSW.state)
+        else:
+            await message.answer("Кол-во ответов не может быть <2 и >5")
+            await state.set_state(AddQState.NUM_ANSW.state)
+    else:
+        await message.reply("введите только число")
+        await state.set_state(AddQState.NUM_ANSW.state)
+
+
+@dp.message_handler(state=AddQState.TRUE_ANSW)
+async def add_true_answer(message: types.Message, state: FSMContext):
+    global count
+    true_answer = message.text
+    await state.update_data(TRUE_ANSWER=true_answer)
+    await message.answer("Ведите следующий ответ")
+    count += 2
+    answer.clear()
     await state.set_state(AddQState.ANSW.state)
 
+answer =[]
 
 @dp.message_handler(state=AddQState.ANSW)
-async def add_confirm(message: types.Message, state: FSMContext):
-    answer_name = message.text    # получаем ответ
-    await state.update_data(ANSWER=answer_name)
-    user_state_date = await state.get_data()
-    cat = user_state_date['CATEGORY']
-    ques = user_state_date['QUESTION']
-    answ = user_state_date['ANSWER']
-    mes = f"Почти закончили\nКатегория: {cat}\n Ваш вопрос: {ques}\nВаш ответ: {answ}"
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    btn1 = types.KeyboardButton('предложить вопрос')
-    btn2 = types.KeyboardButton('отмена')
-    markup.add(btn1, btn2)
-    await message.answer(mes, reply_markup=markup)
-    await state.set_state(AddQState.FINISH.state)
+async def add_answer(message: types.Message, state: FSMContext):
+    global count
+    number_of_responses = await state.get_data()
+    num = number_of_responses['QUANTITY_ANS']
+    num = int(num)
+    us_answer = message.text
+    answer.append(us_answer)
+    if count < num:
+        count += 1
+        await message.answer("Ведите следующий ответ")
+        await state.set_state(AddQState.ANSW.state)
+    elif count == num:
+        await state.update_data(ANSWER=answer)
+        count = 0
+        user_state_date = await state.get_data()
+        cat = user_state_date['CATEGORY']
+        ques = user_state_date['QUESTION']
+        quant_ans = user_state_date['QUANTITY_ANS']
+        true_answer = user_state_date['TRUE_ANSWER']
+        answ = user_state_date['ANSWER']
+        str_answ = ", ".join(answ)
+        mes = f"Почти закончили\nКатегория: {cat}\n Ваш вопрос: {ques}\n" \
+              f"количество ответов:{quant_ans}\nПравильный ответ:{true_answer}\nОстальные ответы: {str_answ}"
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+        btn1 = types.KeyboardButton('предложить вопрос на рассмотрение')
+        btn2 = types.KeyboardButton('отмена')
+        markup.add(btn1, btn2)
+        await message.answer(mes, reply_markup=markup)
+        await state.set_state(AddQState.FINISH.state)
+
 
 @dp.message_handler(state=AddQState.FINISH)
 async def finish(message: types.Message, state: FSMContext):
     finish = message.text    # получаем выбор
-    if finish == 'предложить вопрос':
+    if finish == 'предложить вопрос на рассмотрение':
         user_state_date = await state.get_data()
         cat = user_state_date['CATEGORY']
         ques = user_state_date['QUESTION']
