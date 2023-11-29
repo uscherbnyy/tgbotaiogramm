@@ -135,7 +135,12 @@ async def create_quiz(message: types.Message):
         db.cur.execute("UPDATE user SET last_created_quiz=? WHERE id_user=?", (datetime.datetime.now(), user_id))
         await message.answer("Вы можете создать новую викторину.")
     else:
-        await message.answer("Вы уже создали викторину сегодня. через минуту.")
+        time_diff = datetime.datetime.strptime(last_created, '%Y-%m-%d %H:%M:%S.%f') + datetime.timedelta(
+            minutes=1) - datetime.datetime.now()
+        minutes = int(time_diff.total_seconds() // 60)
+        seconds = int(time_diff.total_seconds() % 60)
+        limit_timer = f"{minutes} минут {seconds} секунд"
+        await message.answer(f"Вы уже создали викторину сегодня. Попробуй через {limit_timer}.")
 
 
 @dp.message_handler(text='добавить вопрос в викторину')
