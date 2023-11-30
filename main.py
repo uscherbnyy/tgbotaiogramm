@@ -23,9 +23,8 @@ class AddQState(StatesGroup):
     # хранит в каком этапе создание вопроса
     CATT = State()
     ADD_QUE = State()
-    CHOICE_NUM = State()
     NUM_ANSW = State()
-    TRUE_ANSW =State()
+    TRUE_ANSW = State()
     ANSW = State()
     FINISH = State()
 
@@ -51,6 +50,7 @@ async def cmd_start(message: types.Message):
 @dp.message_handler(text='пройти викторину')
 async def start_quiz(message: types.Message):
     global current_question_num
+    global count
     a = db.cur.execute("SELECT name FROM categories").fetchall()  # получаем все категории
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)  # создаем образ клавиатуры
     for el in a:  # делаем перебор по всем категориям и добавляем кнопку с названием категории
@@ -59,6 +59,7 @@ async def start_quiz(message: types.Message):
     await message.answer(f'По какой категории хотите пройти викторину', reply_markup=keyboard)
     cat_quiz.clear()
     current_question_num = 0
+    count = 0
 
 
 @dp.message_handler(lambda msg: msg.text in [category[1] for category in db.cur.execute("SELECT * FROM categories")])
@@ -93,25 +94,32 @@ async def handle_quiz(message: types.Message):
 @dp.message_handler(lambda msg: msg.text in [answer[1] for answer in db.cur.execute("SELECT * FROM answers")])
 async def answer_selected(message: types.Message):
     global current_question_num  # объявление глобальной переменной
+    global count
     user_answer = message.text
-
+    a = [answer[1] for answer in db.cur.execute("SELECT * FROM answers WHERE tru_or_false=1")]
+    if user_answer in a:
+        count += 1
     # Получение id категории из базы данных, где имя является тем, которую получили в сообщении
     category_id = db.cur.execute("SELECT id FROM categories WHERE name=?", (cat_quiz[0],)).fetchone()[0]
 
     # Получение списка вопросов для выбранной категории
     questions = db.cur.execute("SELECT * FROM questions WHERE category_id=?", (category_id,)).fetchall()
-
+    number_of_questions = len(questions)
     current_question_num += 1  # увеличение текущего вопроса на 1
-    if current_question_num < len(questions):
+    if current_question_num < number_of_questions:
         current_question = questions[current_question_num]
         answers = db.cur.execute("SELECT * FROM answers WHERE question_id=?", (current_question[0],)).fetchall()
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         for answer in answers:
             keyboard.add(types.KeyboardButton(answer[1]))
-
         await message.answer(f"{current_question[1]}", reply_markup=keyboard)
     else:
-        await message.answer("Эта викторина закончена!", reply_markup=types.ReplyKeyboardRemove())
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+        markup.add('пройти викторину', 'создать/обновить викторину')
+        await message.answer(f"Эта викторина закончена!\nВы ответили правильно на {count} вопросов"
+                             f" из {number_of_questions}", reply_markup=markup)
+
+
 
 
 @dp.message_handler(text='создать/обновить викторину')
@@ -145,8 +153,11 @@ async def create_quiz(message: types.Message):
 
 @dp.message_handler(text='добавить вопрос в викторину')
 async def create_quiz(message: types.Message, state: FSMContext) -> None:
+    global count
+    count = 0
     a = db.cur.execute("SELECT name FROM categories").fetchall()  # получаем все категории
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)  # создаем образ клавиатуры
+    # создаем образ клавиатуры
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, input_field_placeholder="Выберите категорию")
     for el in a:  # делаем перебор по всем категориям и добавляем кнопку с названием категории
         button = types.KeyboardButton(text=el[0])
         keyboard.add(button)
@@ -168,13 +179,6 @@ async def add_questions(message: types.Message, state: FSMContext):
     question_name = message.text    # получаем вопрос
     await state.update_data(QUESTION=question_name)
     await message.reply("Ведите кол-во ответов, ответов не может быть больше 5 и меньше 2")
-    await state.set_state(AddQState.NUM_ANSW.state)
-
-
-@dp.message_handler(state=AddQState.CHOICE_NUM)
-async def choice_num(message: types.Message, state: FSMContext):
-    num_user = message.text
-    await message.answer(f"Значит {num_user}")
     await state.set_state(AddQState.NUM_ANSW.state)
 
 
@@ -253,13 +257,7 @@ async def finish(message: types.Message, state: FSMContext):
         markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
         button = types.KeyboardButton('/start')
         markup.add(button)
-        await message.reply("ты пытался", reply_markup=markup)
-    await state.finish()
-
-
-@dp.message_handler(state=AddQState.FINISH, text='отмена')
-async def cancel_adding(message: types.Message, state: FSMContext):
-    await message.reply("Добавление вопроса отменено.")
+        await message.reply("Добавление вопроса отменено.", reply_markup=markup)
     await state.finish()
 
 if __name__ == '__main__':
