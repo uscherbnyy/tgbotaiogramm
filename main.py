@@ -31,6 +31,17 @@ class AddQState(StatesGroup):
     FINISH = State()
 
 
+markup_admin = ReplyKeyboardMarkup(resize_keyboard=True)
+markup_admin\
+    .add('пройти викторину')\
+    .add('создать/обновить викторину')\
+    .add('админ панель')
+
+admin_panel = ReplyKeyboardMarkup(resize_keyboard=True)
+admin_panel\
+    .add('посмотреть добавленные вопросы')\
+    .add('посмотреть добавленные викторины')\
+    .add('прочие админские кнопки')
 
 
 
@@ -41,11 +52,26 @@ async def on_startup(_):
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
     await db.cmd_start_db(message.from_user.id, message.from_user.first_name)
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    btn1 = types.KeyboardButton('пройти викторину')
-    btn2 = types.KeyboardButton('создать/обновить викторину')
-    markup.add(btn1, btn2)
-    await message.answer(f'добро {message.from_user.first_name}', reply_markup=markup)
+    if message.from_user.id == int(os.getenv('ADMIN_ID')):
+        await message.answer(f'Вы авторизированы как админ!', reply_markup=markup_admin)
+    else:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True)
+        btn1 = types.KeyboardButton('пройти викторину')
+        btn2 = types.KeyboardButton('создать/обновить викторину')
+        markup.add(btn1, btn2)
+        await message.answer(f'добро {message.from_user.first_name}', reply_markup=markup)
+
+
+@dp.message_handler(text='админ панель')
+async def cmd_start(message: types.Message):
+    if message.from_user.id == int(os.getenv('ADMIN_ID')):
+        await message.answer(f'Вы авторизированны как админ!', reply_markup=admin_panel)
+    else:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True)
+        btn1 = types.KeyboardButton('пройти викторину')
+        btn2 = types.KeyboardButton('создать/обновить викторину')
+        markup.add(btn1, btn2)
+        await message.answer(f'Вы вошли в админ панель-\nНЕТ', reply_markup=markup)
 
 
 # Хендлер для начала викторины выбор категории
