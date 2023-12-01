@@ -35,6 +35,18 @@ async def db_start():
         'tru_or_false BOOLEAN, '
         'FOREIGN KEY(question_id) REFERENCES questions(id))')
 
+    # Создаем таблицу обновленых вопросов от пользователя
+    cur.execute(
+        'CREATE TABLE IF NOT EXISTS user_update_qw ('
+        'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+        'user_id VARCHAR,'
+        'category_name TEXT, '
+        'question TEXT, '
+        'true_answer TEXT, '
+        'answer TEXT, '
+        'timestamp DATETIME, '
+        'FOREIGN KEY(user_id) REFERENCES user(id_user))')
+
     # Вставляем значения в таблицу категорий
     cur.execute(
         "INSERT OR IGNORE INTO categories (id, name) "
@@ -86,3 +98,11 @@ async def cmd_start_db(user_id, first_name):
             "VALUES (?, ?)", (user_id, first_name))
         db.commit()
 
+
+async def user_update_qw(user_id, ques, cat, true_answer, str_answ):
+    cur.execute(
+        "INSERT INTO user_update_qw (user_id, category_name, question, true_answer, answer, timestamp)"
+        "VALUES (?, ?, ?, ?, ?, datetime('now'))",
+        (user_id, ques, cat, true_answer, str_answ)
+    )
+    db.commit()
