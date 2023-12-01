@@ -9,7 +9,6 @@ import os
 import datetime
 
 
-
 load_dotenv()
 bot = Bot(os.getenv('TOKEN'))
 # Хранилище состояния пользователя (хранится в ОП) использовать при тестовом проекте

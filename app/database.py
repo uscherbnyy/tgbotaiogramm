@@ -47,43 +47,6 @@ async def db_start():
         'timestamp DATETIME, '
         'FOREIGN KEY(user_id) REFERENCES user(id_user))')
 
-    # Вставляем значения в таблицу категорий
-    cur.execute(
-        "INSERT OR IGNORE INTO categories (name) "
-        "VALUES "
-        "('география'), "
-        "('математика')")
-
-    # Вставляем значения в таблицу вопросов
-    cur.execute(
-        "INSERT OR IGNORE INTO questions (question, category_id) "
-        "VALUES "
-        "('самая большая страна', 1), "
-        "('страна где написан этот бот', 1), "
-        "('река в Минске', 1), "
-        "('2*2', 2), "
-        "('2+2', 2),"
-        "('Столица Украины', 1)")
-
-    # Вставляем значения в таблицу ответов
-    cur.execute(
-        "INSERT OR IGNORE INTO answers (answer, question_id, tru_or_false) "
-        "VALUES "
-        "('Россия', 1, 1), "
-        "('Беларусь', 1, 0), "
-        "('нил', 3, 0), "
-        "('Свислочь', 3, 1), "
-        "('4', 5, 1), "
-        "('5', 5, 0), "
-        "('4', 4, 1), "
-        "('5', 4, 0), "
-        "('Беларусь', 2, 1), "
-        "('LS', 2, 0),"
-        "('Киев', 6, 1),"
-        "('Мариуполь', 6, 0),"
-        "('Львов', 6, 0),"
-        "('Одесса', 6, 0)")
-
     db.commit()
 
 
