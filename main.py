@@ -8,6 +8,8 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 import os
 import datetime
 
+
+
 load_dotenv()
 bot = Bot(os.getenv('TOKEN'))
 # Хранилище состояния пользователя (хранится в ОП) использовать при тестовом проекте
@@ -152,7 +154,7 @@ async def create_quiz(message: types.Message):
 
 
 @dp.message_handler(text='добавить вопрос в викторину')
-async def create_quiz(message: types.Message, state: FSMContext) -> None:
+async def create_quiz(message: types.Message, state: FSMContext):
     global count
     count = 0
     a = db.cur.execute("SELECT name FROM categories").fetchall()  # получаем все категории
@@ -167,11 +169,19 @@ async def create_quiz(message: types.Message, state: FSMContext) -> None:
 
 @dp.message_handler(state=AddQState.CATT)
 async def add_category(message: types.Message, state: FSMContext):
-    category_name = message.text  # получаем название категории
-    await state.update_data(CATEGORY=category_name)
-    await message.answer(f'Вы выбрали категорию: {category_name}.\nТеперь введите ваш вопрос',
-                         reply_markup=types.ReplyKeyboardRemove())
-    await state.set_state(AddQState.ADD_QUE.state)
+    catt = message.text
+    a = db.cur.execute("SELECT name FROM categories").fetchall()
+    if catt in [el[0] for el in a]:
+        category_name = message.text  # получаем название категории
+        await state.update_data(CATEGORY=category_name)
+        await message.answer(f'Вы выбрали категорию: {category_name}.\nТеперь введите ваш вопрос',
+                             reply_markup=types.ReplyKeyboardRemove())
+        await state.set_state(AddQState.ADD_QUE.state)
+    else:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+        markup.add("что это значит?")
+        await message.answer(f'Увы и ах, "{catt}" нет как категории', reply_markup=markup)
+        await state.set_state(AddQState.FINISH.state)
 
 
 @dp.message_handler(state=AddQState.ADD_QUE)
@@ -211,6 +221,7 @@ async def add_true_answer(message: types.Message, state: FSMContext):
 
 answer =[]
 
+
 @dp.message_handler(state=AddQState.ANSW)
 async def add_answer(message: types.Message, state: FSMContext):
     global count
@@ -233,12 +244,13 @@ async def add_answer(message: types.Message, state: FSMContext):
         true_answer = user_state_date['TRUE_ANSWER']
         answ = user_state_date['ANSWER']
         str_answ = ", ".join(answ)
-        mes = f"Почти закончили\nКатегория: {cat}\n Ваш вопрос: {ques}\n" \
+        mes = f"Проверяем:\nКатегория: {cat}\n Ваш вопрос: {ques}\n" \
               f"количество ответов:{quant_ans}\nПравильный ответ:{true_answer}\nОстальные ответы: {str_answ}"
         markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
         btn1 = types.KeyboardButton('предложить вопрос на рассмотрение')
         btn2 = types.KeyboardButton('отмена')
         markup.add(btn1, btn2)
+        await message.answer('Почти закончили')
         await message.answer(mes, reply_markup=markup)
         await state.set_state(AddQState.FINISH.state)
 
@@ -246,13 +258,22 @@ async def add_answer(message: types.Message, state: FSMContext):
 @dp.message_handler(state=AddQState.FINISH)
 async def finish(message: types.Message, state: FSMContext):
     finish = message.text    # получаем выбор
+    user_id = message.from_user.id
     if finish == 'предложить вопрос на рассмотрение':
         user_state_date = await state.get_data()
         cat = user_state_date['CATEGORY']
         ques = user_state_date['QUESTION']
+        quant_ans = user_state_date['QUANTITY_ANS']
+        true_answer = user_state_date['TRUE_ANSWER']
         answ = user_state_date['ANSWER']
-        mes = f"Ваш вопрос: {ques}\nв категорию: {cat}\nС ответом: {answ} передан на рассмотрение. Спасибо"
+        str_answ = ", ".join(answ)
+        mes = f"Ваш вопрос:\n{ques}\nв категорию: {cat}\n " \
+              f"с количеством ответов:{quant_ans}\nВ котором правильный ответ:\n{true_answer}\n" \
+              f"а остальные ответы: {str_answ}\nпередан на рассмотрение. Спасибо"
         await message.answer(mes, reply_markup=types.ReplyKeyboardRemove())
+        await db.user_update_qw(user_id, ques, cat, true_answer, str_answ)
+
+
     else:
         markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
         button = types.KeyboardButton('/start')
