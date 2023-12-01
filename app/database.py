@@ -15,13 +15,13 @@ async def db_start():
     # Создаем таблицу категорий вопросов
     cur.execute(
         'CREATE TABLE IF NOT EXISTS categories ('
-        'id INTEGER PRIMARY KEY, '
+        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
         'name TEXT)')
 
     # Создаем таблицу вопросов с внешним ключом, связанным с категорией
     cur.execute(
         'CREATE TABLE IF NOT EXISTS questions ('
-        'id INTEGER PRIMARY KEY, '
+        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
         'question TEXT, '
         'category_id INTEGER, '
         'FOREIGN KEY(category_id) REFERENCES categories(id))')
@@ -29,7 +29,7 @@ async def db_start():
     # Создаем таблицу ответов с внешним ключом, связанным с вопросом
     cur.execute(
         'CREATE TABLE IF NOT EXISTS answers ('
-        'id INTEGER PRIMARY KEY, '
+        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
         'answer TEXT, '
         'question_id INTEGER, '
         'tru_or_false BOOLEAN, '
@@ -46,43 +46,6 @@ async def db_start():
         'answer TEXT, '
         'timestamp DATETIME, '
         'FOREIGN KEY(user_id) REFERENCES user(id_user))')
-
-    # Вставляем значения в таблицу категорий
-    cur.execute(
-        "INSERT OR IGNORE INTO categories (id, name) "
-        "VALUES "
-        "(1, 'география'), "
-        "(2, 'математика')")
-
-    # Вставляем значения в таблицу вопросов
-    cur.execute(
-        "INSERT OR IGNORE INTO questions (id, question, category_id) "
-        "VALUES "
-        "(1, 'самая большая страна', 1), "
-        "(2, 'страна где написан этот бот', 1), "
-        "(3, 'река в Минске', 1), "
-        "(4, '2*2', 2), "
-        "(5, '2+2', 2),"
-        "(6, 'Столица Украины', 1)")
-
-    # Вставляем значения в таблицу ответов
-    cur.execute(
-        "INSERT OR IGNORE INTO answers (id, answer, question_id, tru_or_false) "
-        "VALUES "
-        "(1, 'Россия', 1, 1), "
-        "(2, 'Беларусь', 1, 0), "
-        "(3, 'нил', 3, 0), "
-        "(4, 'Свислочь', 3, 1), "
-        "(5, '4', 5, 1), "
-        "(6, '5', 5, 0), "
-        "(7, '4', 4, 1), "
-        "(8, '5', 4, 0), "
-        "(9, 'Беларусь', 2, 1), "
-        "(10, 'LS', 2, 0),"
-        "(11, 'Киев', 6, 1),"
-        "(12, 'Мариуполь', 6, 0),"
-        "(13, 'Львов', 6, 0),"
-        "(14, 'Одесса', 6, 0)")
 
     db.commit()
 
