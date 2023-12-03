@@ -90,12 +90,21 @@ async def update_true_answer(answer, question_id):
 
 
 async def update_false_answer(answer, question_id):
-    cur.execute(
-        "INSERT INTO answers (answer, question_id, tru_or_false)"
-        "VALUES (?, ?, ?)",
-        (answer, question_id, 0)
-    )
-    db.commit()
+    my_string = answer
+    # Разделение строки на подстроки по запятой
+    substrings = my_string.split(",")
+    # Удаление начальных и конечных пробелов у каждой подстроки
+    substrings = [substring.strip() for substring in substrings]
+    # Создание списка из подстрок
+    my_list = substrings
+
+    for el in my_list:
+        cur.execute(
+            "INSERT INTO answers (answer, question_id, tru_or_false)"
+            "VALUES (?, ?, ?)",
+            (el, question_id, 0)
+        )
+        db.commit()
 
 
 async def dell():
