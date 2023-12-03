@@ -31,6 +31,7 @@ class AddQState(StatesGroup):
     # состояние добавления вопроса
     START_OF_PROCESSING = State()
     PROCESSING = State()
+    CONF_TO_EXIT = State()
 
 
 markup_admin = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -93,37 +94,62 @@ async def chec_user_update_qw(message: types.Message, state: FSMContext):
         await message.answer(f'Вы не имеете1 доступ', reply_markup=start_markup)
 
 
-@dp.message_handler(text='перейти к обработке', state=AddQState.START_OF_PROCESSING)
+@dp.message_handler(state=AddQState.START_OF_PROCESSING)
 async def check_user_update_qw(message: types.Message, state: FSMContext):
-    user_update_qw = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()
-    await message.answer(f'{user_update_qw}', reply_markup=up_markup)
-    await state.set_state(AddQState.PROCESSING.state)
+    mess = message.text
+    if mess == 'ну нах':
+        await state.finish()
+        await message.answer(f'ну нет, так нет', reply_markup=admin_panel)
+    else:
+        user_update_qw = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()
+        await message.answer(f'{user_update_qw}', reply_markup=up_markup)
+        await state.set_state(AddQState.PROCESSING.state)
 
 
 @dp.message_handler(state=AddQState.PROCESSING)
 async def treatment_user_update_qw(message: types.Message, state: FSMContext):
     choice = message.text
-    if message.from_user.id == int(os.getenv('ADMIN_ID')):
-        if choice == 'удалить':
-            await db.dell()
-            await message.answer(f'Вопрос удален', reply_markup=next_markup)
-            await state.finish()
-        elif choice == 'добавить':
-            user_id = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[1]
-            category_name = db.cur.execute("SELECT category_name FROM user_update_qw LIMIT 1").fetchone()[0]
-            category_id = db.cur.execute("SELECT id FROM categories WHERE name=?", (category_name,)).fetchone()[0]
-            question = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[3]
-            true_answer = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[4]
-            answer = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[5]
-            await db.update_qw(question, category_id)
-            question_id = db.cur.execute("SELECT id FROM questions WHERE question=?", (question,)).fetchone()[0]
-            await db.update_true_answer(true_answer, question_id)
-            await db.update_false_answer(answer, question_id)
-            await message.answer(f'Вопрос вопрос добавлен', reply_markup=next_markup)
-            await db.dell()
-            await state.finish()
+    user_id = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[1]
+    if choice == 'удалить':
+        await db.dell()
+        await message.answer(f'Вопрос удален', reply_markup=next_markup)
+        await state.set_state(AddQState.START_OF_PROCESSING.state)
+        await bot.send_message(user_id, "Привет, Твой вопрос не прошел проверку!")
+    elif choice == 'добавить':
+        category_name = db.cur.execute("SELECT category_name FROM user_update_qw LIMIT 1").fetchone()[0]
+        category_id = db.cur.execute("SELECT id FROM categories WHERE name=?", (category_name,)).fetchone()[0]
+        question = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[3]
+        true_answer = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[4]
+        answer = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[5]
+        await db.update_qw(question, category_id)
+        question_id = db.cur.execute("SELECT id FROM questions WHERE question=?", (question,)).fetchone()[0]
+        await db.update_true_answer(true_answer, question_id)
+        await db.update_false_answer(answer, question_id)
+        await message.answer(f'Вопрос вопрос добавлен', reply_markup=next_markup)
+        await db.dell()
+        await state.set_state(AddQState.START_OF_PROCESSING.state)
+        await bot.send_message(user_id, "Привет, Твой вопрос добавлен!")
+    elif choice == 'с меня хватит':
+        count_user_update_qw = db.cur.execute("SELECT COUNT(*) FROM user_update_qw").fetchone()[0]
+        markup = ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('да').add('нет')
+        await message.answer(f'Вы уверены? осталось {count_user_update_qw}', reply_markup=markup)
+        await state.set_state(AddQState.CONF_TO_EXIT.state)
+
+
+@dp.message_handler(state=AddQState.CONF_TO_EXIT)
+async def treatment_user_update_qw(message: types.Message, state: FSMContext):
+    mes = message.text
+    if mes == 'да':
+        await message.answer(f'Вы авторизированы как админ!', reply_markup=markup_admin)
+        await state.finish()
     else:
-        await message.answer(f'Вы не имеете3 доступ', reply_markup=start_markup)
+        markup = ReplyKeyboardMarkup(resize_keyboard=True)
+        btn1 = types.KeyboardButton('перейти к обработке')
+        btn2 = types.KeyboardButton('ну нах')
+        markup.add(btn1, btn2)
+        await message.answer(f'отлично осталось немного', reply_markup=markup)
+        await state.set_state(AddQState.START_OF_PROCESSING.state)
 
 
 # Хендлер для начала викторины выбор категории
@@ -200,8 +226,6 @@ async def answer_selected(message: types.Message):
                              f" из {number_of_questions}", reply_markup=markup)
 
 
-
-
 @dp.message_handler(text='создать/обновить викторину')
 async def turn_quiz(message: types.Message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
@@ -221,14 +245,14 @@ async def create_quiz(message: types.Message):
     if last_created is None or datetime.datetime.now() - datetime.datetime.strptime\
                 (last_created, '%Y-%m-%d %H:%M:%S.%f') >= datetime.timedelta(minutes=1):
         db.cur.execute("UPDATE user SET last_created_quiz=? WHERE id_user=?", (datetime.datetime.now(), user_id))
-        await message.answer("Вы можете создать новую викторину.")
+        await message.answer("Вы можете создать новую викторину. Но сейчас это не реализовано:(")
     else:
         time_diff = datetime.datetime.strptime(last_created, '%Y-%m-%d %H:%M:%S.%f') + datetime.timedelta(
             minutes=1) - datetime.datetime.now()
         minutes = int(time_diff.total_seconds() // 60)
         seconds = int(time_diff.total_seconds() % 60)
         limit_timer = f"{minutes} минут {seconds} секунд"
-        await message.answer(f"Вы уже создали викторину сегодня. Попробуй через {limit_timer}.")
+        await message.answer(f"Вы уже пытались создать викторину сегодня. Попробуй через {limit_timer}.")
 
 
 @dp.message_handler(text='добавить вопрос в викторину')
@@ -348,10 +372,8 @@ async def finish(message: types.Message, state: FSMContext):
         mes = f"Ваш вопрос:\n{ques}\nв категорию: {cat}\n " \
               f"с количеством ответов:{quant_ans}\nВ котором правильный ответ:\n{true_answer}\n" \
               f"а остальные ответы: {str_answ}\nпередан на рассмотрение. Спасибо"
-        await message.answer(mes, reply_markup=types.ReplyKeyboardRemove())
+        await message.answer(mes, reply_markup=start_markup)
         await db.user_update_qw(user_id, ques, cat, true_answer, str_answ)
-
-
     else:
         markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
         button = types.KeyboardButton('/start')
