@@ -64,8 +64,41 @@ async def cmd_start_db(user_id, first_name):
 
 async def user_update_qw(user_id, ques, cat, true_answer, str_answ):
     cur.execute(
-        "INSERT INTO user_update_qw (user_id, category_name, question, true_answer, answer, timestamp)"
+        "INSERT INTO user_update_qw (user_id, question, category_name, true_answer, answer, timestamp)"
         "VALUES (?, ?, ?, ?, ?, datetime('now'))",
         (user_id, ques, cat, true_answer, str_answ)
     )
+    db.commit()
+
+
+async def update_qw(question, category_id):
+    cur.execute(
+        "INSERT INTO questions (question, category_id)"
+        "VALUES (?, ?)",
+        (question, category_id)
+    )
+    db.commit()
+
+
+async def update_true_answer(answer, question_id):
+    cur.execute(
+        "INSERT INTO answers (answer, question_id, tru_or_false)"
+        "VALUES (?, ?, ?)",
+        (answer, question_id, 1)
+    )
+    db.commit()
+
+
+async def update_false_answer(answer, question_id):
+    cur.execute(
+        "INSERT INTO answers (answer, question_id, tru_or_false)"
+        "VALUES (?, ?, ?)",
+        (answer, question_id, 0)
+    )
+    db.commit()
+
+
+async def dell():
+    id_user_update_qw = cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[0]
+    cur.execute("DELETE FROM user_update_qw WHERE id = ?", (id_user_update_qw,))
     db.commit()

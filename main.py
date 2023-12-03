@@ -28,6 +28,9 @@ class AddQState(StatesGroup):
     TRUE_ANSW = State()
     ANSW = State()
     FINISH = State()
+    # состояние добавления вопроса
+    START_OF_PROCESSING = State()
+    PROCESSING = State()
 
 
 markup_admin = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -42,6 +45,14 @@ admin_panel\
     .add('посмотреть добавленные викторины')\
     .add('прочие админские кнопки')
 
+start_markup = ReplyKeyboardMarkup(resize_keyboard=True)
+start_markup.add('пройти викторину').add('создать/обновить викторину')
+
+up_markup = ReplyKeyboardMarkup(resize_keyboard=True)
+up_markup.add('добавить').add('удалить').add('с меня хватит')
+
+next_markup = ReplyKeyboardMarkup(resize_keyboard=True)
+next_markup.add('дальше').add('с меня хватит')
 
 
 async def on_startup(_):
@@ -54,11 +65,7 @@ async def cmd_start(message: types.Message):
     if message.from_user.id == int(os.getenv('ADMIN_ID')):
         await message.answer(f'Вы авторизированы как админ!', reply_markup=markup_admin)
     else:
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        btn1 = types.KeyboardButton('пройти викторину')
-        btn2 = types.KeyboardButton('создать/обновить викторину')
-        markup.add(btn1, btn2)
-        await message.answer(f'добро {message.from_user.first_name}', reply_markup=markup)
+        await message.answer(f'доброго, {message.from_user.first_name}', reply_markup=start_markup)
 
 
 @dp.message_handler(text='админ панель')
@@ -66,11 +73,57 @@ async def cmd_start(message: types.Message):
     if message.from_user.id == int(os.getenv('ADMIN_ID')):
         await message.answer(f'Вы авторизированны как админ!', reply_markup=admin_panel)
     else:
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        btn1 = types.KeyboardButton('пройти викторину')
-        btn2 = types.KeyboardButton('создать/обновить викторину')
-        markup.add(btn1, btn2)
-        await message.answer(f'Вы вошли в админ панель-\nНЕТ', reply_markup=markup)
+        await message.answer(f'Вы вошли в админ панель-\nНЕТ', reply_markup=start_markup)
+
+
+@dp.message_handler(text='посмотреть добавленные вопросы')
+async def chec_user_update_qw(message: types.Message, state: FSMContext):
+    if message.from_user.id == int(os.getenv('ADMIN_ID')):
+        count_user_update_qw = db.cur.execute("SELECT COUNT(*) FROM user_update_qw").fetchone()[0]
+        if count_user_update_qw == 0:
+            await message.answer(f'нет добавленных вопросов')
+        else:
+            markup = ReplyKeyboardMarkup(resize_keyboard=True)
+            btn1 = types.KeyboardButton('перейти к обработке')
+            btn2 = types.KeyboardButton('ну нах')
+            markup.add(btn1, btn2)
+            await message.answer(f'количество добавленных вопросов {count_user_update_qw}', reply_markup=markup)
+            await state.set_state(AddQState.START_OF_PROCESSING.state)
+    else:
+        await message.answer(f'Вы не имеете1 доступ', reply_markup=start_markup)
+
+
+@dp.message_handler(text='перейти к обработке', state=AddQState.START_OF_PROCESSING)
+async def check_user_update_qw(message: types.Message, state: FSMContext):
+    user_update_qw = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()
+    await message.answer(f'{user_update_qw}', reply_markup=up_markup)
+    await state.set_state(AddQState.PROCESSING.state)
+
+
+@dp.message_handler(state=AddQState.PROCESSING)
+async def treatment_user_update_qw(message: types.Message, state: FSMContext):
+    choice = message.text
+    if message.from_user.id == int(os.getenv('ADMIN_ID')):
+        if choice == 'удалить':
+            await db.dell()
+            await message.answer(f'Вопрос удален', reply_markup=next_markup)
+            await state.finish()
+        elif choice == 'добавить':
+            user_id = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[1]
+            category_name = db.cur.execute("SELECT category_name FROM user_update_qw LIMIT 1").fetchone()[0]
+            category_id = db.cur.execute("SELECT id FROM categories WHERE name=?", (category_name,)).fetchone()[0]
+            question = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[3]
+            true_answer = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[4]
+            answer = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()[5]
+            await db.update_qw(question, category_id)
+            question_id = db.cur.execute("SELECT id FROM questions WHERE question=?", (question,)).fetchone()[0]
+            await db.update_true_answer(true_answer, question_id)
+            await db.update_false_answer(answer, question_id)
+            await message.answer(f'Вопрос вопрос добавлен', reply_markup=next_markup)
+            await db.dell()
+            await state.finish()
+    else:
+        await message.answer(f'Вы не имеете3 доступ', reply_markup=start_markup)
 
 
 # Хендлер для начала викторины выбор категории
