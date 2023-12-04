@@ -1,10 +1,11 @@
 from aiogram import Bot, Dispatcher, executor, types
 from app import database as db
-from aiogram.types import ReplyKeyboardMarkup
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import StatesGroup, State
+import random
 import os
 import datetime
 
@@ -190,10 +191,11 @@ async def handle_quiz(message: types.Message):
             answers = db.cur.execute("SELECT * FROM answers WHERE question_id=?", (current_question[0],)).fetchall()
 
             # Создание кнопок-ответов
-            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            answer_list = []
             for answer in answers:
-                keyboard.add(types.KeyboardButton(answer[1]))
-
+                answer_list.append(types.KeyboardButton(answer[1]))
+            random.shuffle(answer_list)
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(*answer_list)
             await message.answer(f"{current_question[1]}", reply_markup=keyboard)
 
 
@@ -215,9 +217,12 @@ async def answer_selected(message: types.Message):
     if current_question_num < number_of_questions:
         current_question = questions[current_question_num]
         answers = db.cur.execute("SELECT * FROM answers WHERE question_id=?", (current_question[0],)).fetchall()
-        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+
+        answer_list = []
         for answer in answers:
-            keyboard.add(types.KeyboardButton(answer[1]))
+            answer_list.append(types.KeyboardButton(answer[1]))
+            random.shuffle(answer_list)
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(*answer_list)
         await message.answer(f"{current_question[1]}", reply_markup=keyboard)
     else:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
