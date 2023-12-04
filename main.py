@@ -103,9 +103,12 @@ async def check_user_update_qw(message: types.Message, state: FSMContext):
         await message.answer(f'ну нет, так нет', reply_markup=admin_panel)
     else:
         user_update_qw = db.cur.execute("SELECT * FROM user_update_qw LIMIT 1").fetchone()
-        await message.answer(f'{user_update_qw}', reply_markup=up_markup)
-        await state.set_state(AddQState.PROCESSING.state)
-
+        if user_update_qw is not None:
+            await message.answer(f'{user_update_qw}', reply_markup=up_markup)
+            await state.set_state(AddQState.PROCESSING.state)
+        else:
+            await state.finish()
+            await message.answer(f'все вопросы закончились', reply_markup=admin_panel)
 
 @dp.message_handler(state=AddQState.PROCESSING)
 async def treatment_user_update_qw(message: types.Message, state: FSMContext):
